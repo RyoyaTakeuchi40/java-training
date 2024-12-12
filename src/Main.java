@@ -4,6 +4,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.function.Function;
 
 public class Main {
 
@@ -61,6 +62,7 @@ public class Main {
                     Map<String, String> holdingStocks = positionCalculator.getHoldingStocks(allTransactions);
                     tablePrinter.printHoldings(holdingQuantity,holdingStocks);
                     break;
+
                 case "9":
                     System.out.println("アプリケーションを終了します。");
                     isRunning = false;
@@ -70,6 +72,7 @@ public class Main {
                     System.out.println("不正な入力です。再度入力してください。");
                     break;
             }
+            System.out.println();
         }
         scanner.close();
     }
@@ -89,26 +92,50 @@ public class Main {
     }
 
     private static void inputTransaction(Scanner scanner, CsvReader csvReader, TransactionCsvWriter transactionCsvWriter) {
+        PositionCalculator positionCalculator = new PositionCalculator();
+
         System.out.println("取引情報を入力します。");
 
         // 銘柄コード入力
-        String ticker = promptInput(scanner, "銘柄コード", InputValidator::isValidTicker).toUpperCase();
-        List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
-        Stock stock = stocks.stream()
-                .filter(s -> s.getTicker().equals(ticker))
-                .findFirst()
-                .orElse(null);
+        String ticker = "";
+        Stock stock = null;
+        while(stock == null) {
+            ticker = promptInput(scanner, "銘柄コード", InputValidator::isValidTicker).toUpperCase();
+            List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
+            String finalTicker = ticker;
+            stock = stocks.stream()
+                    .filter(s -> s.getTicker().equals(finalTicker))
+                    .findFirst()
+                    .orElse(null);
 
-        if (stock == null) {
-            System.out.println("銘柄コードが存在しません。取引を中止します。");
-            return;
+            if (stock == null) {
+                System.out.println("銘柄コードが存在しません。");
+            }
         }
-
         // 取引情報の入力
         LocalDateTime tradedDatetime = inputDatetime(scanner);
         String side = promptInput(scanner, "売買区分（買い / 売り）", InputValidator::isValidSide);
         int quantity = Integer.parseInt(promptInput(scanner, "取引数量（100株単位）", InputValidator::isValidQuantity));
         BigDecimal tradedUnitPrice = new BigDecimal(promptInput(scanner, "取引単価", InputValidator::isValidPrice));
+
+        // 1. 保有数量が負になるか確認
+        List<Transaction> allTransactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
+        Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(allTransactions);
+        int updatedQuantity = calculateUpdatedQuantity(holdingQuantity, ticker, side, quantity);
+        if (updatedQuantity < 0) {
+            System.out.println("保有数量がマイナスになる取引は登録できません。");
+            System.out.printf("現在の保有数量:%d",holdingQuantity.get(ticker));
+            return;
+        }
+
+        // 2. 取引時間の確認
+        LocalDateTime lastTransactionDatetime = lastTransactionDatetime(allTransactions, ticker);
+        if (lastTransactionDatetime != null && !lastTransactionDatetime.isBefore(tradedDatetime)) {
+            System.out.println("同一銘柄の最終取引日時より新しい日時を指定してください。。");
+            System.out.printf("最終取引日時:%s",lastTransactionDatetime);
+            return;
+        }
+
 
         Transaction transaction = new Transaction(tradedDatetime, ticker, stock.getName(), side, quantity, tradedUnitPrice);
 
@@ -142,16 +169,31 @@ public class Main {
         return tradedDatetime;
     }
 
-    private static String promptInput(Scanner scanner, String prompt, java.util.function.Predicate<String> validator) {
+    private static String promptInput(Scanner scanner, String prompt, Function<String, String> validator) {
         String input;
+        String validationMessage;
         while (true) {
             System.out.print(prompt + " > ");
             input = scanner.nextLine().trim();
-            if (validator.test(input)) {
+            validationMessage = validator.apply(input);
+            if (validationMessage == null) {
                 break;
             }
-            System.out.println(prompt + "が規則に従っていません。再度入力してください。");
+            System.out.println(validationMessage);  // エラーメッセージを表示
         }
         return input;
+    }
+
+    private static int calculateUpdatedQuantity(Map<String, Integer> holdings, String ticker, String side, int quantity) {
+        int currentQuantity = holdings.getOrDefault(ticker, 0);
+        return side.equals("買い") ? currentQuantity + quantity : currentQuantity - quantity;
+    }
+
+    private static LocalDateTime lastTransactionDatetime(List<Transaction> transactions, String ticker) {
+        return transactions.stream()
+                .filter(t -> t.getTicker().equals(ticker))
+                .map(Transaction::getTradedDatetime)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 }
