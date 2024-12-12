@@ -2,6 +2,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 public class Main {
@@ -15,6 +16,8 @@ public class Main {
         CsvWriter csvWriter = new CsvWriter(STOCKS_CSV_FILE);
         TransactionCsvWriter transactionCsvWriter = new TransactionCsvWriter(TRANSACTIONS_CSV_FILE);
         TablePrinter tablePrinter = new TablePrinter();
+        PositionCalculator positionCalculator = new PositionCalculator();
+
         boolean isRunning = true;
 
         System.out.println("株式取引管理システムを開始します。");
@@ -24,6 +27,8 @@ public class Main {
             System.out.println("1. 銘柄マスター一覧表示");
             System.out.println("2. 銘柄マスタ新規登録");
             System.out.println("3. 取引入力");
+            System.out.println("4. 取引一覧の表示");
+            System.out.println("5. 保有ポジション表示");
             System.out.println("9. アプリケーションを終了する");
             System.out.print("入力してください：");
 
@@ -43,6 +48,19 @@ public class Main {
                     inputTransaction(scanner, csvReader, transactionCsvWriter);
                     break;
 
+                case "4":
+                    List<Transaction> transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
+                    // 取引日時で降順にソート
+                    transactions.sort((t1, t2) -> t2.getTradedDatetime().compareTo(t1.getTradedDatetime()));
+                    tablePrinter.printTransactions(transactions);
+                    break;
+
+                case "5":
+                    List<Transaction> allTransactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
+                    Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(allTransactions);
+                    Map<String, String> holdingStocks = positionCalculator.getHoldingStocks(allTransactions);
+                    tablePrinter.printHoldings(holdingQuantity,holdingStocks);
+                    break;
                 case "9":
                     System.out.println("アプリケーションを終了します。");
                     isRunning = false;
@@ -92,7 +110,7 @@ public class Main {
         int quantity = Integer.parseInt(promptInput(scanner, "取引数量（100株単位）", InputValidator::isValidQuantity));
         BigDecimal tradedUnitPrice = new BigDecimal(promptInput(scanner, "取引単価", InputValidator::isValidPrice));
 
-        Transaction transaction = new Transaction(tradedDatetime, ticker, side, quantity, tradedUnitPrice);
+        Transaction transaction = new Transaction(tradedDatetime, ticker, stock.getName(), side, quantity, tradedUnitPrice);
 
         // 取引記録の保存
         transactionCsvWriter.saveTransaction(transaction);

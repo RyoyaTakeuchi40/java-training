@@ -45,7 +45,7 @@ public class TransactionInput {
         BigDecimal tradedUnitPrice = new BigDecimal(scanner.nextLine());
 
         // 取引を記録
-        Transaction transaction = new Transaction(tradedDatetime, ticker, side, quantity, tradedUnitPrice);
+        Transaction transaction = new Transaction(tradedDatetime, ticker, stock.getName(), side, quantity, tradedUnitPrice);
         recordTransaction(transaction);
     }
 

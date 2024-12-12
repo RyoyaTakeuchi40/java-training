@@ -13,9 +13,10 @@ public class TransactionCsvWriter {
 
     public void saveTransaction(Transaction transaction) {
         try (PrintWriter pw = new PrintWriter(new FileWriter(filePath, true))) {
-            String record = String.format("%s,%s,%s,%d,%.2f,%s",
+            String record = String.format("%s,%s,%s,%s,%d,%.2f,%s",
                     transaction.getTradedDatetime(),
                     transaction.getTicker(),
+                    transaction.getStockName(),
                     transaction.getSide(),
                     transaction.getQuantity(),
                     transaction.getTradedUnitPrice(),
