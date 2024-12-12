@@ -11,11 +11,11 @@ public class CsvWriter {
         this.filePath = filePath;
     }
 
-    public boolean addStock(Stock stock, List<Stock> existingStocks) {
+    public void addStock(Stock stock, List<Stock> existingStocks) {
         // 銘柄コードの重複チェック
         if (existingStocks.stream().anyMatch(s -> s.getTicker().equalsIgnoreCase(stock.getTicker()))) {
             System.out.println("既に登録されている銘柄コードです。登録に失敗しました。");
-            return false;
+            return;
         }
 
         // CSVファイルへの追記
@@ -27,19 +27,17 @@ public class CsvWriter {
                     stock.getSharesIssued());
             pw.println(record);
             System.out.println(stock.getName() + "を新規銘柄として登録しました。");
-            return true;
         } catch (IOException e) {
             System.out.println("CSVファイルへの登録に失敗しました: " + e.getMessage());
-            return false;
         }
     }
 
     private String mapMarketCode(String market) {
-        switch (market.toLowerCase()) {
-            case "prime": return "P";
-            case "standard": return "S";
-            case "growth": return "G";
-            default: return "不明";
-        }
+        return switch (market.toLowerCase()) {
+            case "prime" -> "P";
+            case "standard" -> "S";
+            case "growth" -> "G";
+            default -> "不明";
+        };
     }
 }
