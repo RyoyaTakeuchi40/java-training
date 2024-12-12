@@ -54,9 +54,7 @@ public class TablePrinter {
             return;
         }
 
-        String borderLine = "-".repeat(5
-                1
-                0);
+        String borderLine = "-".repeat(48);
         System.out.println(borderLine);
         System.out.printf("| %-6s | %-18s | %-14s |\n",
                 "Ticker", "Name", "Quantity");
