@@ -10,6 +10,7 @@ public class Main {
 
     private static final String STOCKS_CSV_FILE = "src/stocks.csv";
     private static final String TRANSACTIONS_CSV_FILE = "src/transactions.csv";
+    private static final String MARKET_PRICE_CSV_FILE = "src/market_prices.csv";
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -18,10 +19,16 @@ public class Main {
         TransactionCsvWriter transactionCsvWriter = new TransactionCsvWriter(TRANSACTIONS_CSV_FILE);
         TablePrinter tablePrinter = new TablePrinter();
         PositionCalculator positionCalculator = new PositionCalculator();
+        MarketPriceManager marketPriceManager = new MarketPriceManager();
 
         boolean isRunning = true;
 
         System.out.println("株式取引管理システムを開始します。");
+
+        // 時価情報の読み込み
+        List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
+        List<Transaction> transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
+        List<MarketPrice>marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stocks);
 
         while (isRunning) {
             System.out.println("\n操作するメニューを選んでください。");
@@ -30,6 +37,7 @@ public class Main {
             System.out.println("3. 取引入力");
             System.out.println("4. 取引一覧の表示");
             System.out.println("5. 保有ポジション表示");
+            System.out.println("6. 時価情報更新");
             System.out.println("9. アプリケーションを終了する");
             System.out.print("入力してください：");
 
@@ -37,30 +45,36 @@ public class Main {
 
             switch (userInput) {
                 case "1":
-                    List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
                     tablePrinter.printStocks(stocks);
                     break;
 
                 case "2":
-                    registerNewStock(scanner, csvReader, csvWriter);
+                    registerNewStock(scanner, csvWriter, stocks);
+                    // stocks情報更新
+                    stocks = csvReader.readStocks(STOCKS_CSV_FILE);
+                    tablePrinter.printStocks(stocks);
                     break;
 
                 case "3":
                     inputTransaction(scanner, csvReader, transactionCsvWriter);
+                    // transactions情報更新
+                    transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
+                    tablePrinter.printTransactions(transactions);
                     break;
 
                 case "4":
-                    List<Transaction> transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
-                    // 取引日時で降順にソート
-                    transactions.sort((t1, t2) -> t2.getTradedDatetime().compareTo(t1.getTradedDatetime()));
                     tablePrinter.printTransactions(transactions);
                     break;
 
                 case "5":
-                    List<Transaction> allTransactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
-                    Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(allTransactions);
-                    Map<String, String> holdingStocks = positionCalculator.getHoldingStocks(allTransactions);
-                    tablePrinter.printHoldings(holdingQuantity,holdingStocks);
+                    Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(transactions);
+                    Map<String, String> holdingStocks = positionCalculator.getHoldingStocks(transactions);
+                    tablePrinter.printHoldings(holdingQuantity, holdingStocks);
+                    break;
+
+                case "6":
+                    marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stocks);
+                    marketPriceManager.printMarketPrices(marketPrices);
                     break;
 
                 case "9":
@@ -77,7 +91,7 @@ public class Main {
         scanner.close();
     }
 
-    private static void registerNewStock(Scanner scanner, CsvReader csvReader, CsvWriter csvWriter) {
+    private static void registerNewStock(Scanner scanner, CsvWriter csvWriter, List<Stock> existingStocks) {
         System.out.println("新規株式銘柄マスタを登録します。");
 
         String name = promptInput(scanner, "銘柄名", InputValidator::isValidName);
@@ -86,7 +100,6 @@ public class Main {
         long sharesIssued = Long.parseLong(promptInput(scanner, "発行済み株式数", InputValidator::isValidSharesIssued));
 
         Stock newStock = new Stock(ticker, name, market, sharesIssued);
-        List<Stock> existingStocks = csvReader.readStocks(STOCKS_CSV_FILE);
 
         csvWriter.addStock(newStock, existingStocks);
     }

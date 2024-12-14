@@ -30,6 +30,7 @@ public class TablePrinter {
             return;
         }
 
+        transactions.sort((t1, t2) -> t2.getTradedDatetime().compareTo(t1.getTradedDatetime()));
         String borderLine = "-".repeat(92);
         System.out.println(borderLine);
         System.out.printf("| %-16s | %-6s | %-18s | %-4s | %-14s | %-15s |\n",
