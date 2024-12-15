@@ -32,7 +32,7 @@ public class TablePrinter {
             return;
         }
 
-        transactions.sort((t1, t2) -> t2.getTradedDatetime().compareTo(t1.getTradedDatetime()));
+        transactions.sort(Comparator.comparing(Transaction::getTradedDatetime).reversed());
         String borderLine = "-".repeat(92);
         System.out.println(borderLine);
         System.out.printf("| %-16s | %-6s | %-18s | %-4s | %-14s | %-15s |\n",
@@ -51,34 +51,40 @@ public class TablePrinter {
     }
 
     public void printPositions(List<Position> positions) {
+        if (positions.isEmpty()) {
+            System.out.println("保有ポジションはありません。");
+            return;
+        }
+
+        positions.sort(Comparator.comparing(Position::getTicker));
         String borderLine = "-".repeat(100);
         System.out.println(borderLine);
         System.out.printf("| %-6s | %-18s | %14s | %14s | %14s | %14s |\n",
                 "Ticker", "Name", "Quantity", "Avg Price", "Valuation", "Unrealized PnL");
         System.out.println(borderLine);
-
-        positions.stream()
-                .sorted(Comparator.comparing(Position::getTicker))
-                .forEach(pos -> System.out.printf("| %-6s | %-18s | %,14d | %,14.2f | %14s | %14s |\n",
-                        pos.getTicker(),
-                        formatName(pos.getStockName()),
-                        pos.getQuantity(),
-                        pos.getAvgUnitPrice(),
-                        formatCurrency(pos.getValuation()),
-                        formatCurrency(pos.getUnrealizedPnL())
-                ));
+        for (Position position : positions) {
+            System.out.printf("| %-6s | %-18s | %,14d | %,14.2f | %14s | %14s |\n",
+                    position.getTicker(),
+                    formatName(position.getStockName()),
+                    position.getQuantity(),
+                    position.getAvgUnitPrice(),
+                    formatCurrency(position.getValuation()),
+                    formatCurrency(position.getUnrealizedPnL())
+            );
+        }
         System.out.println(borderLine);
     }
 
-    public void printMarketPrices(List<MarketPrice> marketPrices) {
+    public void printMarketPrices(Map<String, BigDecimal> marketPrices, Map<String, String> stockMap) {
         String borderLine = "-".repeat(44);
         System.out.println(borderLine);
-        System.out.printf("| %-6s | %-18s | %-10s |\n",
-                "Ticker", "Name", "Price");
+        System.out.printf("| %-6s | %-18s | %10s |\n", "Ticker", "Name", "Price");
         System.out.println(borderLine);
-        for (MarketPrice marketPrice : marketPrices) {
-            System.out.printf("| %-6s | %-18s | %10.2f |\n",
-                    marketPrice.getTicker(), formatName(marketPrice.getName()), marketPrice.getMarketPrice());
+        for (Map.Entry<String, BigDecimal> entry : marketPrices.entrySet()) {
+            String ticker = entry.getKey();
+            BigDecimal price = entry.getValue();
+            System.out.printf("| %-6s | %-18s | %,10.2f |\n",
+                    ticker, formatName(stockMap.get(ticker)), price);
         }
         System.out.println(borderLine);
     }

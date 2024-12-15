@@ -44,42 +44,4 @@ public class PositionCalculator {
 
         return new ArrayList<>(positionMap.values());
     }
-
-    // 時価情報の更新
-    public void updateMarketPrices(List<Position> positions, Map<String, BigDecimal> marketPrices) {
-        for (Position position : positions) {
-            BigDecimal marketPrice = marketPrices.get(position.getTicker());
-            position.updateValuation(marketPrice);
-        }
-    }
-
-    // ポジション表示
-    public void printPositions(List<Position> positions) {
-        String borderLine = "-".repeat(100);
-        System.out.println(borderLine);
-        System.out.printf("| %-6s | %-18s | %14s | %14s | %14s | %14s |\n",
-                "Ticker", "Name", "Quantity", "Avg Price", "Valuation", "Unrealized PnL");
-        System.out.println(borderLine);
-
-        positions.stream()
-                .sorted(Comparator.comparing(Position::getTicker))
-                .forEach(pos -> System.out.printf("| %-6s | %-18s | %,14d | %,14.2f | %14s | %14s |\n",
-                        pos.getTicker(),
-                        formatName(pos.getStockName()),
-                        pos.getQuantity(),
-                        pos.getAvgUnitPrice(),
-                        formatCurrency(pos.getValuation()),
-                        formatCurrency(pos.getUnrealizedPnL())
-                ));
-        System.out.println(borderLine);
-    }
-
-    // ユーティリティメソッド
-    private String formatCurrency(BigDecimal value) {
-        return value == null ? "N/A" : String.format("%,.2f", value);
-    }
-
-    private String formatName(String name) {
-        return name == null ? "N/A" : name;
-    }
 }

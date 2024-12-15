@@ -1,6 +1,7 @@
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -25,10 +26,11 @@ public class Main {
 
         System.out.println("株式取引管理システムを開始します。");
 
-        // 時価情報の読み込み
         List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
+        // 検索を早くするためにtickerとnameをMap型にする
+        Map<String, String> stockMap = createStocksMap(stocks);
         List<Transaction> transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
-        List<MarketPrice>marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stocks);
+        Map<String, BigDecimal> marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stockMap);
 
         while (isRunning) {
             System.out.println("\n操作するメニューを選んでください。");
@@ -49,14 +51,15 @@ public class Main {
                     break;
 
                 case "2":
-                    registerNewStock(scanner, csvWriter, stocks);
+                    registerNewStock(scanner, csvWriter, stockMap);
                     // stocks情報更新
                     stocks = csvReader.readStocks(STOCKS_CSV_FILE);
+                    stockMap = createStocksMap(stocks);
                     tablePrinter.printStocks(stocks);
                     break;
 
                 case "3":
-                    inputTransaction(scanner, csvReader, transactionCsvWriter);
+                    inputTransaction(scanner, transactionCsvWriter, transactions, stockMap);
                     // transactions情報更新
                     transactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
                     tablePrinter.printTransactions(transactions);
@@ -73,8 +76,8 @@ public class Main {
                     break;
 
                 case "6":
-                    marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stocks);
-                    tablePrinter.printMarketPrices(marketPrices);
+                    marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stockMap);
+                    tablePrinter.printMarketPrices(marketPrices, stockMap);
                     break;
 
                 case "9":
@@ -91,69 +94,82 @@ public class Main {
         scanner.close();
     }
 
-    private static void registerNewStock(Scanner scanner, CsvWriter csvWriter, List<Stock> existingStocks) {
+    private static void registerNewStock(Scanner scanner, CsvWriter csvWriter, Map<String, String> stockMap) {
         System.out.println("新規株式銘柄マスタを登録します。");
 
         String name = promptInput(scanner, "銘柄名", InputValidator::isValidName);
-        String ticker = promptInput(scanner, "銘柄コード", InputValidator::isValidTicker).toUpperCase();
+        String ticker;
+        while (true) {
+            ticker = promptInput(scanner, "銘柄コード", InputValidator::isValidTicker).toUpperCase();
+            if (!stockMap.containsKey(ticker)) {
+                break; // 重複なしなら次へ進む
+            }
+            System.out.println("既に登録されている銘柄コードです。もう一度入力してください。");
+        }
         String market = promptInput(scanner, "上場市場 (Prime/Standard/Growth)", InputValidator::isValidMarket);
         long sharesIssued = Long.parseLong(promptInput(scanner, "発行済み株式数", InputValidator::isValidSharesIssued));
 
         Stock newStock = new Stock(ticker, name, market, sharesIssued);
-
-        csvWriter.addStock(newStock, existingStocks);
+        csvWriter.addStock(newStock);
     }
 
-    private static void inputTransaction(Scanner scanner, CsvReader csvReader, TransactionCsvWriter transactionCsvWriter) {
+    private static void inputTransaction(Scanner scanner, TransactionCsvWriter transactionCsvWriter, List<Transaction> transactions, Map<String, String> stockMap) {
         PositionCalculator positionCalculator = new PositionCalculator();
-
         System.out.println("取引情報を入力します。");
 
+        String ticker = null;
+        String stockName = null;
+        LocalDateTime tradedDatetime;
+        int quantity;
         // 銘柄コード入力
-        String ticker = "";
-        Stock stock = null;
-        while(stock == null) {
+        while(stockName == null) {
             ticker = promptInput(scanner, "銘柄コード", InputValidator::isValidTicker).toUpperCase();
-            List<Stock> stocks = csvReader.readStocks(STOCKS_CSV_FILE);
-            String finalTicker = ticker;
-            stock = stocks.stream()
-                    .filter(s -> s.getTicker().equals(finalTicker))
-                    .findFirst()
-                    .orElse(null);
-
-            if (stock == null) {
+            if (!stockMap.containsKey(ticker)) {
                 System.out.println("銘柄コードが存在しません。");
             }
+            stockName = stockMap.get(ticker);
         }
         // 取引情報の入力
-        LocalDateTime tradedDatetime = inputDatetime(scanner);
+        while (true) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+            tradedDatetime = LocalDateTime.parse(promptInput(scanner, "取引日時", InputValidator::isValidDatetime), formatter);
+            LocalDateTime lastTransactionDatetime = lastTransactionDatetime(transactions, ticker);
+            if (lastTransactionDatetime != null && !lastTransactionDatetime.isBefore(tradedDatetime)) {
+                System.out.println("同一銘柄の最終取引日時より新しい日時を指定してください。。");
+                System.out.printf("最終取引日時:%s\n", lastTransactionDatetime);
+                continue;
+            }
+            break;
+        }
+        // 売買区分の入力
         String side = promptInput(scanner, "売買区分（買い / 売り）", InputValidator::isValidSide);
-        int quantity = Integer.parseInt(promptInput(scanner, "取引数量（100株単位）", InputValidator::isValidQuantity));
+        // 取引情報の入力
+        while (true) {
+            quantity = Integer.parseInt(promptInput(scanner, "取引数量（100株単位）", InputValidator::isValidQuantity));
+            Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(transactions);
+            int updatedQuantity = calculateUpdatedQuantity(holdingQuantity, ticker, side, quantity);
+            if (updatedQuantity < 0) {
+                System.out.println("保有数量がマイナスになる取引は登録できません。");
+                System.out.printf("現在の保有数量:%d\n", holdingQuantity.get(ticker));
+                continue;
+            }
+            break;
+        }
+        // 取引単価の入力
         BigDecimal tradedUnitPrice = new BigDecimal(promptInput(scanner, "取引単価", InputValidator::isValidPrice));
 
-        // 1. 保有数量が負になるか確認
-        List<Transaction> allTransactions = csvReader.readTransactions(TRANSACTIONS_CSV_FILE);
-        Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(allTransactions);
-        int updatedQuantity = calculateUpdatedQuantity(holdingQuantity, ticker, side, quantity);
-        if (updatedQuantity < 0) {
-            System.out.println("保有数量がマイナスになる取引は登録できません。");
-            System.out.printf("現在の保有数量:%d",holdingQuantity.get(ticker));
-            return;
-        }
-
-        // 2. 取引時間の確認
-        LocalDateTime lastTransactionDatetime = lastTransactionDatetime(allTransactions, ticker);
-        if (lastTransactionDatetime != null && !lastTransactionDatetime.isBefore(tradedDatetime)) {
-            System.out.println("同一銘柄の最終取引日時より新しい日時を指定してください。。");
-            System.out.printf("最終取引日時:%s",lastTransactionDatetime);
-            return;
-        }
-
-
-        Transaction transaction = new Transaction(tradedDatetime, ticker, stock.getName(), side, quantity, tradedUnitPrice);
+        Transaction transaction = new Transaction(tradedDatetime, ticker, stockMap.get(ticker), side, quantity, tradedUnitPrice);
 
         // 取引記録の保存
         transactionCsvWriter.saveTransaction(transaction);
+    }
+
+    private static Map<String, String> createStocksMap(List<Stock> stocks) {
+        Map<String, String> stocksMap = new HashMap<>();
+        for (Stock stock : stocks) {
+            stocksMap.put(stock.getTicker(), stock.getName());
+        }
+        return stocksMap;
     }
 
     private static LocalDateTime inputDatetime(Scanner scanner) {

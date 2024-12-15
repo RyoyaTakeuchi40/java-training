@@ -1,4 +1,6 @@
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
 public class InputValidator {
@@ -33,6 +35,22 @@ public class InputValidator {
     public static String isValidSharesIssued(String sharesIssued) {
         if (!Pattern.matches("^\\d{1,9}$", sharesIssued)) {
             return "発行済み株式数は1〜9桁の整数で入力してください。";
+        }
+        return null;
+    }
+
+    // 日時のバリデーション
+    public static String isValidDatetime(String input) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        try {
+            LocalDateTime tradedDatetime = LocalDateTime.parse(input, formatter);
+            if (tradedDatetime.isAfter(LocalDateTime.now())) {
+                return "取引日時は現在日時より前でなければなりません。";
+            } else if (tradedDatetime.getDayOfWeek().getValue() > 5 || tradedDatetime.getHour() < 9 || tradedDatetime.getHour() > 15 || (tradedDatetime.getHour() == 15 && tradedDatetime.getMinute() > 30)) {
+                return  "取引日時は平日9:00～15:30の間である必要があります。";
+            }
+        } catch (Exception e) {
+            return "不正な日時フォーマットです。";
         }
         return null;
     }
