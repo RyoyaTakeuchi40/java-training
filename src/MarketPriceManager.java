@@ -28,14 +28,4 @@ public class MarketPriceManager {
         }
         return marketPrices;
     }
-
-    // 時価情報の表示
-    public void printMarketPrices(List<MarketPrice> marketPrices) {
-        System.out.println("--------------------------------------------------------");
-        System.out.printf("| %-6s | %-20s | %10s |\n", "Ticker", "Name", "Market Price");
-        System.out.println("--------------------------------------------------------");
-        marketPrices.forEach(mp -> System.out.printf("| %-6s | %-20s | %10.2f |\n",
-                mp.getTicker(), mp.getName(), mp.getMarketPrice()));
-        System.out.println("--------------------------------------------------------");
-    }
 }

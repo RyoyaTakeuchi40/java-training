@@ -67,14 +67,14 @@ public class Main {
                     break;
 
                 case "5":
-                    Map<String, Integer> holdingQuantity = positionCalculator.getHoldingQuantity(transactions);
-                    Map<String, String> holdingStocks = positionCalculator.getHoldingStocks(transactions);
-                    tablePrinter.printHoldings(holdingQuantity, holdingStocks);
+                    List<Position> positions = positionCalculator.calculatePositions(transactions);
+                    tablePrinter.printPositions(positions);
+
                     break;
 
                 case "6":
                     marketPrices = marketPriceManager.loadMarketPrices(MARKET_PRICE_CSV_FILE, stocks);
-                    marketPriceManager.printMarketPrices(marketPrices);
+                    tablePrinter.printMarketPrices(marketPrices);
                     break;
 
                 case "9":
